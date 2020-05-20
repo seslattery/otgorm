@@ -7,15 +7,15 @@ import (
 	"google.golang.org/grpc/codes"
 
 	"github.com/jinzhu/gorm"
-	"go.opentelemetry.io/otel/api/core"
 	"go.opentelemetry.io/otel/api/global"
+	"go.opentelemetry.io/otel/api/kv"
 	"go.opentelemetry.io/otel/api/trace"
 )
 
 //Attributes that may or may not be added to a span based on Options used
 const (
-	TableKey = core.Key("gorm.table") //The table the GORM query is acting upon
-	QueryKey = core.Key("gorm.query") //The GORM query itself
+	TableKey = kv.Key("gorm.table") //The table the GORM query is acting upon
+	QueryKey = kv.Key("gorm.query") //The GORM query itself
 )
 
 type callbacks struct {
@@ -30,7 +30,7 @@ type callbacks struct {
 	table bool
 
 	//List of default attributes to include onto the span for DB calls
-	defaultAttributes []core.KeyValue
+	defaultAttributes []kv.KeyValue
 
 	//tracer creates spans. This is required
 	tracer trace.Tracer
@@ -95,16 +95,16 @@ func (t Table) apply(c *callbacks) {
 }
 
 // DefaultAttributes sets attributes to each span.
-type DefaultAttributes []core.KeyValue
+type DefaultAttributes []kv.KeyValue
 
 func (d DefaultAttributes) apply(c *callbacks) {
-	c.defaultAttributes = []core.KeyValue(d)
+	c.defaultAttributes = []kv.KeyValue(d)
 }
 
 // RegisterCallbacks registers the necessary callbacks in Gorm's hook system for instrumentation with OpenTelemetry Spans.
 func RegisterCallbacks(db *gorm.DB, opts ...Option) {
 	c := &callbacks{
-		defaultAttributes: []core.KeyValue{},
+		defaultAttributes: []kv.KeyValue{},
 	}
 	defaultOpts := []Option{
 		WithTracer(global.TraceProvider().Tracer("otgorm")),
@@ -165,7 +165,7 @@ func (c *callbacks) startTrace(ctx context.Context, scope *gorm.Scope, operation
 			opts...,
 		)
 	} else {
-		opts = append(opts, trace.ChildOf(parentSpan.SpanContext()))
+		//opts = append(opts, trace.ChildOf(parentSpan.SpanContext()))
 		ctx, span = c.tracer.Start(ctx, fmt.Sprintf("gorm:%s", operation), opts...)
 	}
 
@@ -209,7 +209,7 @@ func (c *callbacks) endTrace(scope *gorm.Scope) {
 
 	}
 
-	span.SetStatus(code)
+	span.SetStatus(code, string(code))
 
 	//End Span
 	span.End()
